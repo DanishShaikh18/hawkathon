@@ -1,106 +1,186 @@
-import React, { useState } from 'react';
-import { Search, MapPin, CheckCircle, XCircle, Map as MapIcon } from 'lucide-react';
+import React, { useState } from "react";
+import {
+  Search,
+  MapPin,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Pill,
+  Store,
+} from "lucide-react";
+import { searchMedicines } from "../lib/api";
 
 const MedicineFinder = () => {
-  const [search, setSearch] = useState('');
-  const [hasSearched, setHasSearched] = useState(false);
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState([]);
+  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Mock results for meds
-  const results = [
-    { name: 'City Pharmacy', dist: '2 km', available: true, address: 'Near Bus Stand, Nabha' },
-    { name: 'Nabha Medicos', dist: '5 km', available: true, address: 'Main Bazar, Patiala Road' },
-    { name: 'Village Health Center', dist: '8 km', available: false, address: 'Gram Panchayat Govt Dispensary' },
-  ];
+  const handleSearch = async () => {
+    if (!search.trim()) return;
+    setLoading(true);
+    setError("");
+    setSearched(false);
+    try {
+      const data = await searchMedicines(search.trim());
+      setResults(data);
+      setSearched(true);
+    } catch (err) {
+      setError(
+        err.message === "offline"
+          ? "Cannot search while offline."
+          : "Search failed. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full">
-      {/* Search and Results Section */}
-      <div className="flex flex-col gap-6 w-full lg:w-1/2">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Find Medicines</h2>
-          <p className="text-slate-600 mb-6">Search pharmacies with live stock status.</p>
+    <div className="flex flex-col gap-5 animate-fadeIn">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">
+          Find Medicines
+        </h1>
+        <p className="text-slate-500">
+          Search pharmacy stock near Nabha & surrounding villages
+        </p>
+      </div>
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input 
-                type="text" 
-                placeholder="Medicine Name (e.g. Paracetamol)"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 text-lg border-2 border-slate-200 rounded-xl focus:border-primary focus:outline-none transition-colors"
-                onKeyDown={(e) => e.key === 'Enter' && setHasSearched(true)}
-              />
-            </div>
-            <button 
-              className="bg-primary text-primary-foreground font-bold px-8 py-4 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-              onClick={() => setHasSearched(true)}
-            >
-              Search
-            </button>
+      {/* Search */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              size={20}
+            />
+            <input
+              id="medicine-search"
+              type="text"
+              placeholder="Medicine name (e.g. Paracetamol)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="w-full pl-12 pr-4 py-4 text-lg border-2 border-slate-200 rounded-xl focus:border-primary focus:outline-none transition-colors bg-slate-50/50"
+            />
           </div>
+          <button
+            onClick={handleSearch}
+            disabled={loading || !search.trim()}
+            className="bg-gradient-to-r from-primary to-blue-700 text-white font-bold px-8 py-4 rounded-xl hover:shadow-lg hover:shadow-primary/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin" size={20} />
+            ) : (
+              <>
+                <Search size={18} /> Search
+              </>
+            )}
+          </button>
         </div>
 
-        {hasSearched && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Results for "{search || 'Paracetamol'}"</h3>
-            
-            <div className="flex flex-col gap-4">
+        {/* Common meds quick buttons */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {["Paracetamol", "Amoxicillin", "ORS", "Cetirizine", "Ibuprofen"].map(
+            (med) => (
+              <button
+                key={med}
+                onClick={() => {
+                  setSearch(med);
+                  setTimeout(() => handleSearch(), 0);
+                }}
+                className="text-sm px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary font-medium transition-colors"
+              >
+                {med}
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl">
+          {error}
+        </div>
+      )}
+
+      {/* Results */}
+      {searched && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6">
+          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Pill size={18} className="text-primary" />
+            Results for "{search}"
+            <span className="text-sm font-normal text-slate-400 ml-auto">
+              {results.length} {results.length === 1 ? "pharmacy" : "pharmacies"}
+            </span>
+          </h3>
+
+          {results.length === 0 ? (
+            <div className="text-center py-12">
+              <XCircle size={48} className="text-slate-200 mx-auto mb-4" />
+              <p className="text-slate-400 font-medium">
+                Medicine not found at any pharmacy
+              </p>
+              <p className="text-sm text-slate-300 mt-1">
+                Try a different medicine name or check with local shops
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
               {results.map((r, i) => (
-                <div key={i} className={`border-l-4 p-4 rounded-r-xl border border-slate-100 shadow-sm ${r.available ? 'border-l-softGreen bg-green-50/30' : 'border-l-slate-300 bg-slate-50/50'}`}>
+                <div
+                  key={i}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    r.available_quantity > 0
+                      ? "border-l-4 border-l-emerald-500 border-slate-100 bg-emerald-50/30"
+                      : "border-l-4 border-l-slate-300 border-slate-100 bg-slate-50/50 opacity-70"
+                  }`}
+                >
                   <div className="flex justify-between items-start mb-2">
-                    <strong className="text-lg text-slate-800">{r.name}</strong>
-                    <span className="text-slate-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded shadow-sm text-sm">
-                      <MapPin size={14}/> {r.dist}
-                    </span>
+                    <div className="flex items-start gap-3">
+                      <div className="bg-white p-2 rounded-lg shadow-sm">
+                        <Store
+                          size={18}
+                          className={
+                            r.available_quantity > 0
+                              ? "text-emerald-600"
+                              : "text-slate-400"
+                          }
+                        />
+                      </div>
+                      <div>
+                        <strong className="text-slate-800 text-lg block">
+                          {r.pharmacy}
+                        </strong>
+                        <p className="text-slate-500 text-sm flex items-center gap-1">
+                          <MapPin size={12} />
+                          {r.location}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <p className="text-slate-600 text-sm mb-3">{r.address}</p>
-                  
-                  {r.available ? (
-                    <div className="text-softGreen flex items-center gap-2 font-bold bg-green-100 w-fit px-3 py-1 rounded-full text-sm">
-                      <CheckCircle size={16}/> In Stock
-                    </div>
-                  ) : (
-                    <div className="text-slate-500 flex items-center gap-2 font-bold bg-slate-200 w-fit px-3 py-1 rounded-full text-sm">
-                      <XCircle size={16}/> Out of Stock
-                    </div>
-                  )}
+
+                  <div className="flex items-center justify-between mt-2">
+                    {r.available_quantity > 0 ? (
+                      <span className="text-emerald-600 flex items-center gap-1.5 font-bold bg-emerald-100 px-3 py-1 rounded-full text-sm">
+                        <CheckCircle size={14} />
+                        In Stock — {r.available_quantity} units
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 flex items-center gap-1.5 font-bold bg-slate-200 px-3 py-1 rounded-full text-sm">
+                        <XCircle size={14} />
+                        Out of Stock
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Map Visualizer Mock Section (Desktop gets full height, Mobile gets stacked) */}
-      <div className="w-full lg:w-1/2 bg-slate-200 rounded-xl overflow-hidden shadow-inner border border-slate-300 min-h-[300px] lg:min-h-full flex flex-col relative">
-        <div className="absolute top-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md z-10 flex items-center gap-3">
-           <MapIcon className="text-primary animate-pulse" />
-           <p className="font-semibold text-slate-800 text-sm">Live Location Integration (Interactive Map Area)</p>
+          )}
         </div>
-        
-        {/* Mock Map Background Grid */}
-        <div 
-          className="flex-1 w-full h-full opacity-30"
-          style={{ 
-            backgroundImage: 'repeating-linear-gradient(#ccc 0 1px, transparent 1px 100%), repeating-linear-gradient(90deg, #ccc 0 1px, transparent 1px 100%)',
-            backgroundSize: '40px 40px'
-          }}
-        ></div>
-
-        {/* Mock Map Pins */}
-        {hasSearched && (
-          <>
-             <div className="absolute top-1/3 left-1/4 animate-bounce">
-                <MapPin size={36} className="text-emergencyRed drop-shadow-md" fill="white" />
-             </div>
-             <div className="absolute top-1/2 right-1/4 animate-bounce" style={{animationDelay: '100ms'}}>
-                <MapPin size={36} className="text-emergencyRed drop-shadow-md" fill="white" />
-             </div>
-          </>
-        )}
-      </div>
+      )}
     </div>
   );
 };

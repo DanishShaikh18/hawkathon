@@ -1,27 +1,51 @@
-import { Routes, Route } from 'react-router-dom';
-import Layout from './components/Layout';
+import { Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import Layout from "./components/Layout";
 
-import Home from './pages/Home';
-import LanguageSelect from './pages/LanguageSelect';
-import SymptomChecker from './pages/SymptomChecker';
-import Consultation from './pages/Consultation';
-import HealthRecords from './pages/HealthRecords';
-import MedicineFinder from './pages/MedicineFinder';
-function App() {
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Home from "./pages/Home";
+import SymptomChecker from "./pages/SymptomChecker";
+import Consultation from "./pages/Consultation";
+import HealthRecords from "./pages/HealthRecords";
+import MedicineFinder from "./pages/MedicineFinder";
+
+function ProtectedRoute({ children }) {
+  const { patient } = useAuth();
+  if (!patient) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AppRoutes() {
   return (
     <Routes>
-      {/* Route without Layout for language selection */}
-      <Route path="/language" element={<LanguageSelect />} />
-      
-      {/* Routes with Main Layout (Nav + Header) */}
-      <Route element={<Layout />}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/" element={<Home />} />
         <Route path="/symptoms" element={<SymptomChecker />} />
         <Route path="/consult" element={<Consultation />} />
         <Route path="/records" element={<HealthRecords />} />
         <Route path="/medicine" element={<MedicineFinder />} />
       </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
 

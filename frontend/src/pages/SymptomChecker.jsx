@@ -1,157 +1,297 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, AlertTriangle, Info, ArrowRight, ShieldAlert } from 'lucide-react';
-import VoiceInput from '../components/ui/VoiceInput';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  CheckCircle,
+  AlertTriangle,
+  Info,
+  ArrowRight,
+  ShieldAlert,
+  Mic,
+  MicOff,
+  Loader2,
+} from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { checkSymptoms as apiCheckSymptoms } from "../lib/api";
+
+const symptomList = [
+  "Fever",
+  "Cough",
+  "Headache",
+  "Stomach Pain",
+  "Breathing Issue",
+  "Chest Pain",
+  "Fatigue",
+  "Body Ache",
+  "Sore Throat",
+  "Diarrhea",
+  "Joint Pain",
+  "Back Pain",
+];
 
 const SymptomChecker = () => {
   const [step, setStep] = useState(1);
-  const [symptoms, setSymptoms] = useState(() => {
-    const saved = localStorage.getItem('healthconnect_symptoms');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [symptoms, setSymptoms] = useState([]);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const { patient } = useAuth();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    localStorage.setItem('healthconnect_symptoms', JSON.stringify(symptoms));
-  }, [symptoms]);
+  const handleToggle = (s) => {
+    setSymptoms((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
+  };
 
-  const handleSymptomToggle = (symptom) => {
-    if (symptoms.includes(symptom)) {
-      setSymptoms(symptoms.filter(s => s !== symptom));
-    } else {
-      setSymptoms([...symptoms, symptom]);
+  const handleVoice = () => {
+    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+      alert("Voice input not supported in this browser.");
+      return;
     }
-  };
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-  const mockVoiceInput = () => {
-    setIsListening(true);
-    setTimeout(() => {
-      setIsListening(false);
-      const newSymptoms = ['Fever', 'Chest Pain']; // Mocked voice input adding a severe symptom
-      setSymptoms(Array.from(new Set([...symptoms, ...newSymptoms])));
-    }, 2000);
-  };
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
 
-  // Triage Logic based on Hawkathon Problem Statement
-  const getTriageResult = () => {
-    if (symptoms.includes('Chest Pain') || symptoms.includes('Breathing Issue')) {
-      return {
-        color: 'bg-emergencyRed text-white',
-        icon: <ShieldAlert size={48} />,
-        level: 'RED: EMERGENCY',
-        advice: 'Visit hospital immediately. Do not wait.',
-        actionText: 'Call Emergency Services',
-        actionClass: 'bg-white text-emergencyRed border-2 border-white hover:bg-red-50'
-      };
-    } else if (symptoms.includes('Fever') && symptoms.includes('Cough')) {
-      return {
-        color: 'bg-warningAmber text-black',
-        icon: <AlertTriangle size={48} />,
-        level: 'YELLOW: CONSULT DOCTOR SOON',
-        advice: 'You have moderate symptoms. Please schedule a teleconsultation to be safe.',
-        actionText: 'Book Voice Consultation Now',
-        actionClass: 'bg-black text-warningAmber hover:bg-slate-800'
-      };
-    } else {
-      return {
-        color: 'bg-softGreen text-white',
-        icon: <CheckCircle size={48} />,
-        level: 'GREEN: SELF CARE',
-        advice: 'Minor issue detected. Rest and drink fluids. If symptoms worsen, consult a doctor.',
-        actionText: 'Find Medicines Nearby',
-        actionClass: 'bg-white text-softGreen border-2 border-white hover:bg-green-50'
-      };
-    }
-  };
-
-  const renderStep = () => {
-    if (step === 1) {
-      return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8">
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">How are you feeling?</h2>
-          <p className="text-slate-600 mb-6">Select your symptoms or use voice input to describe them.</p>
-          
-          <VoiceInput 
-            isListening={isListening} 
-            onSpeechResult={mockVoiceInput} 
-          />
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-6">
-            {['Fever', 'Cough', 'Headache', 'Stomach Pain', 'Breathing Issue', 'Chest Pain', 'Fatigue'].map(s => (
-              <button 
-                key={s}
-                onClick={() => handleSymptomToggle(s)}
-                className={`p-4 rounded-xl text-lg transition-colors border-2 ${
-                  symptoms.includes(s) 
-                    ? 'bg-primary/10 border-primary text-primary font-bold' 
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-primary/50'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          
-          <button 
-            className="w-full mt-8 bg-primary text-primary-foreground p-4 rounded-xl text-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            onClick={() => setStep(2)}
-            disabled={symptoms.length === 0}
-          >
-            Analyze Symptoms <ArrowRight />
-          </button>
-        </div>
+    recognition.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      // Match spoken words to symptom list
+      const found = symptomList.filter((s) =>
+        text.toLowerCase().includes(s.toLowerCase())
       );
+      if (found.length > 0) {
+        setSymptoms((prev) => Array.from(new Set([...prev, ...found])));
+      }
+    };
+
+    recognition.start();
+  };
+
+  const handleAnalyze = async () => {
+    if (symptoms.length === 0) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await apiCheckSymptoms(
+        patient?.id || 0,
+        symptoms.join(", ")
+      );
+      setResult(data);
+      setStep(2);
+    } catch (err) {
+      if (err.message === "offline") {
+        // Offline fallback — client-side triage
+        const s = symptoms.join(", ").toLowerCase();
+        let fallback;
+        if (s.includes("chest pain") || s.includes("breathing issue")) {
+          fallback = {
+            possible_issue: "Possible emergency",
+            urgency: "emergency",
+            advice: "Seek immediate medical help.",
+          };
+        } else if (s.includes("fever") && s.includes("cough")) {
+          fallback = {
+            possible_issue: "Possible viral infection",
+            urgency: "moderate",
+            advice: "Consult a doctor within 24 hours.",
+          };
+        } else {
+          fallback = {
+            possible_issue: "Minor symptoms",
+            urgency: "low",
+            advice: "Rest and hydrate. Consult doctor if symptoms persist.",
+          };
+        }
+        setResult(fallback);
+        setStep(2);
+      } else {
+        setError("Failed to analyze symptoms. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    // Step 2: AI Triage Result
-    const triage = getTriageResult();
-    
+  };
+
+  const getTriageStyle = () => {
+    if (!result) return {};
+    switch (result.urgency) {
+      case "emergency":
+        return {
+          bg: "bg-gradient-to-br from-red-500 to-red-700",
+          icon: <ShieldAlert size={48} />,
+          level: "🔴 EMERGENCY",
+          actionText: "Call Emergency Services",
+          actionPath: null,
+          actionClass: "bg-white text-red-600 hover:bg-red-50",
+        };
+      case "moderate":
+        return {
+          bg: "bg-gradient-to-br from-amber-400 to-orange-500",
+          icon: <AlertTriangle size={48} />,
+          level: "🟡 CONSULT DOCTOR SOON",
+          actionText: "Book Consultation Now",
+          actionPath: "/consult",
+          actionClass: "bg-white text-amber-700 hover:bg-amber-50",
+        };
+      default:
+        return {
+          bg: "bg-gradient-to-br from-emerald-500 to-emerald-700",
+          icon: <CheckCircle size={48} />,
+          level: "🟢 SELF CARE",
+          actionText: "Find Medicines Nearby",
+          actionPath: "/medicine",
+          actionClass: "bg-white text-emerald-700 hover:bg-emerald-50",
+        };
+    }
+  };
+
+  if (step === 2 && result) {
+    const t = getTriageStyle();
     return (
-      <div className={`rounded-xl shadow-md overflow-hidden ${triage.color}`}>
-        <div className="p-8 text-center flex flex-col items-center">
-          <div className="mb-4 animate-in zoom-in duration-500">
-            {triage.icon}
+      <div className="flex flex-col gap-4 animate-fadeIn">
+        <div
+          className={`rounded-2xl shadow-xl overflow-hidden text-white ${t.bg}`}
+        >
+          <div className="p-8 text-center flex flex-col items-center">
+            <div className="mb-4 animate-bounce">{t.icon}</div>
+            <h2 className="text-2xl md:text-3xl font-extrabold tracking-wide">
+              {t.level}
+            </h2>
           </div>
-          <h2 className="text-2xl md:text-3xl font-extrabold mb-2 tracking-wide">
-            {triage.level}
-          </h2>
-        </div>
-        
-        <div className="bg-white/10 backdrop-blur-sm p-6 md:p-8">
-          <div className="mb-4">
-            <h3 className="font-bold opacity-80 uppercase text-sm mb-1">Reported Symptoms</h3>
-            <p className="text-lg font-medium">{symptoms.join(', ')}</p>
-          </div>
-          
-          <div className="bg-black/10 rounded-lg p-4 mb-8">
-            <h3 className="font-bold mb-1 flex items-center gap-2">
-              <Info size={18} /> Advice
-            </h3>
-            <p className="text-lg leading-relaxed">{triage.advice}</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button className={`flex-1 p-4 rounded-xl font-bold text-lg text-center transition-colors shadow-sm ${triage.actionClass}`}>
-              {triage.actionText}
-            </button>
-            <button 
-              className="flex-1 p-4 rounded-xl font-bold text-lg text-center border-2 border-transparent bg-black/20 hover:bg-black/30 transition-colors"
-              onClick={() => { setStep(1); setSymptoms([]); }}
-            >
-              Start Over
-            </button>
+
+          <div className="bg-black/10 backdrop-blur-sm p-6 md:p-8">
+            <div className="mb-4">
+              <h3 className="font-bold opacity-80 uppercase text-xs tracking-wider mb-1">
+                Possible Issue
+              </h3>
+              <p className="text-xl font-semibold">{result.possible_issue}</p>
+            </div>
+
+            <div className="mb-4">
+              <h3 className="font-bold opacity-80 uppercase text-xs tracking-wider mb-1">
+                Reported Symptoms
+              </h3>
+              <p className="text-lg font-medium">{symptoms.join(", ")}</p>
+            </div>
+
+            <div className="bg-black/10 rounded-xl p-4 mb-6">
+              <h3 className="font-bold mb-1 flex items-center gap-2">
+                <Info size={16} /> Advice
+              </h3>
+              <p className="text-lg leading-relaxed">{result.advice}</p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                className={`flex-1 p-4 rounded-xl font-bold text-lg text-center transition-all shadow-md ${t.actionClass}`}
+                onClick={() =>
+                  t.actionPath ? navigate(t.actionPath) : alert("Dial 108 for emergency")
+                }
+              >
+                {t.actionText}
+              </button>
+              <button
+                className="flex-1 p-4 rounded-xl font-bold text-lg text-center bg-white/20 hover:bg-white/30 transition-colors"
+                onClick={() => {
+                  setStep(1);
+                  setSymptoms([]);
+                  setResult(null);
+                }}
+              >
+                Start Over
+              </button>
+            </div>
           </div>
         </div>
       </div>
     );
-  };
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="mb-2">
-        <h1 className="text-3xl font-bold text-slate-900">AI Symptom Checker</h1>
-        <p className="text-slate-500">Fast, offline-capable triage</p>
+    <div className="flex flex-col gap-4 animate-fadeIn">
+      <div className="mb-1">
+        <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">
+          AI Symptom Checker
+        </h1>
+        <p className="text-slate-500">
+          Offline-capable AI triage • Select or speak your symptoms
+        </p>
       </div>
-      {renderStep()}
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-8">
+        <h2 className="text-xl font-bold text-slate-800 mb-1">
+          How are you feeling?
+        </h2>
+        <p className="text-slate-500 text-sm mb-5">
+          Select all symptoms that apply, or use voice input.
+        </p>
+
+        {/* Voice Button */}
+        <button
+          onClick={handleVoice}
+          className={`w-full mb-5 p-4 rounded-xl border-2 font-bold text-lg flex items-center justify-center gap-3 transition-all ${
+            isListening
+              ? "border-amber-400 bg-amber-50 text-amber-700 animate-pulse"
+              : "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+          }`}
+        >
+          {isListening ? (
+            <>
+              <MicOff size={22} /> Listening...
+            </>
+          ) : (
+            <>
+              <Mic size={22} /> Speak Your Symptoms
+            </>
+          )}
+        </button>
+
+        {/* Symptom Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {symptomList.map((s) => (
+            <button
+              key={s}
+              onClick={() => handleToggle(s)}
+              className={`p-3.5 rounded-xl text-base font-medium transition-all border-2 ${
+                symptoms.includes(s)
+                  ? "bg-primary/10 border-primary text-primary font-bold shadow-sm"
+                  : "bg-slate-50 border-slate-200 text-slate-700 hover:border-primary/40"
+              }`}
+            >
+              {symptoms.includes(s) ? "✓ " : ""}
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl">
+            {error}
+          </div>
+        )}
+
+        <button
+          className="w-full mt-6 bg-gradient-to-r from-primary to-blue-700 text-white p-4 rounded-xl text-lg font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          onClick={handleAnalyze}
+          disabled={symptoms.length === 0 || loading}
+        >
+          {loading ? (
+            <Loader2 className="animate-spin" size={22} />
+          ) : (
+            <>
+              Analyze Symptoms <ArrowRight size={20} />
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 };
