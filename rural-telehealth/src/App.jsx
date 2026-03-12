@@ -14,6 +14,11 @@ import ConsultationRequests from './doctor/pages/ConsultationRequests';
 import PatientRecords from './doctor/pages/PatientRecords';
 import PrescribeMedicine from './doctor/pages/PrescribeMedicine';
 
+import PharmacyLayout from './pharmacy/PharmacyLayout';
+import PharmacyDashboard from './pharmacy/pages/PharmacyDashboard';
+import PharmacyRegistration from './pharmacy/pages/PharmacyRegistration';
+import MedicineManagement from './pharmacy/pages/MedicineManagement';
+
 function App() {
   return (
     <Routes>
@@ -35,6 +40,13 @@ function App() {
         <Route path="requests" element={<ConsultationRequests />} />
         <Route path="patients" element={<PatientRecords />} />
         <Route path="prescribe" element={<PrescribeMedicine />} />
+      </Route>
+
+      {/* Pharmacy Module Routes */}
+      <Route path="/pharmacy" element={<PharmacyLayout />}>
+        <Route index element={<PharmacyDashboard />} />
+        <Route path="register" element={<PharmacyRegistration />} />
+        <Route path="medicines" element={<MedicineManagement />} />
       </Route>
     </Routes>
   );
